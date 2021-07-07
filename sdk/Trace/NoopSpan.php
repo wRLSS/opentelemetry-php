@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace OpenTelemetry\Sdk\Trace;
 
 use Exception;
+use OpenTelemetry\Context\ContextKey;
+use OpenTelemetry\Context\ContextValueTrait;
 use OpenTelemetry\Trace as API;
 
-class NoopSpan implements \OpenTelemetry\Trace\Span
+class NoopSpan implements API\Span
 {
+    use ContextValueTrait;
+
     /** @var API\SpanContext */
     private $context;
 
@@ -119,18 +123,9 @@ class NoopSpan implements \OpenTelemetry\Trace\Span
         return $this;
     }
 
-    public function recordException(Exception $exception): API\Span
+    public function recordException(Exception $exception, ?API\Attributes $attributes = null): API\Span
     {
-        $attributes = new Attributes(
-            [
-                'exception.type' => get_class($exception),
-                'exception.message' => $exception->getMessage(),
-                'exception.stacktrace' => $exception->getTraceAsString(),
-            ]
-        );
-        $timestamp = time();
-
-        return  $this->addEvent('exception', $timestamp, $attributes);
+        return $this;
     }
 
     public function updateName(string $name): API\Span
@@ -159,6 +154,11 @@ class NoopSpan implements \OpenTelemetry\Trace\Span
         return false;
     }
 
+    public function isRemote(): bool
+    {
+        return $this->context->isRemote();
+    }
+
     public function isSampled(): bool
     {
         return false;
@@ -182,5 +182,14 @@ class NoopSpan implements \OpenTelemetry\Trace\Span
     public function isStatusOk(): bool
     {
         return $this->status->isStatusOK();
+    }
+
+    /**
+     * @return ContextKey
+     * @phan-override
+     */
+    protected static function getContextKey(): ContextKey
+    {
+        return SpanContextKey::instance();
     }
 }

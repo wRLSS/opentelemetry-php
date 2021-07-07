@@ -68,14 +68,37 @@ class TraceContextTest extends TestCase
     /**
      * @test
      */
+    public function testExtractCaseInsensitiveHeaders()
+    {
+        $tracestateValue = 'vendor2=opaqueValue2,vendor3=opaqueValue3';
+
+        $carrier = ['TrAcEpArEnT' => self::TRACEPARENTVALUE,
+                    'TrAcEsTaTe' => $tracestateValue, ];
+
+        $map = new PropagationMap();
+        $context = TraceContext::extract($carrier, $map);
+
+        $extractedTraceparent = '00-' . $context->getTraceId() . '-' . $context->getSpanId() . '-' . ($context->isSampled() ? '01' : '00');
+        $this->assertSame(self::TRACEPARENTVALUE, $extractedTraceparent);
+
+        $extractedTracestate = $context->getTraceState();
+        $this->assertSame($tracestateValue, $extractedTracestate ? $extractedTracestate->build() : '');
+    }
+
+    /**
+     * @test
+     */
     public function testExtractInvalidTraceparent()
     {
         $carrier = [];
         $map = new PropagationMap();
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Traceparent not present');
         $context = TraceContext::extract($carrier, $map);
+
+        $this->assertSame(SpanContext::INVALID_TRACE, $context->getTraceId());
+        $this->assertSame(SpanContext::INVALID_SPAN, $context->getSpanId());
+        $this->assertSame(self::VERSION, ($context->isSampled() ? '01' : '00'));
+        $this->assertFalse($context->isRemote());
     }
 
     /**
@@ -145,9 +168,12 @@ class TraceContextTest extends TestCase
             $carrier = [TraceContext::TRACEPARENT => $invalidTraceparentValue];
             $map = new PropagationMap();
 
-            $this->expectException(\InvalidArgumentException::class);
-            $this->expectExceptionMessage('Unable to extract traceparent. Expected 4 values, got ' . 5);
             $context = TraceContext::extract($carrier, $map);
+
+            $this->assertSame(SpanContext::INVALID_TRACE, $context->getTraceId());
+            $this->assertSame(SpanContext::INVALID_SPAN, $context->getSpanId());
+            $this->assertSame(self::VERSION, ($context->isSampled() ? '01' : '00'));
+            $this->assertFalse($context->isRemote());
         }
     }
 
@@ -168,9 +194,12 @@ class TraceContextTest extends TestCase
             $carrier = [TraceContext::TRACEPARENT => $traceparentValue];
             $map = new PropagationMap();
 
-            $this->expectException(\InvalidArgumentException::class);
-            $this->expectExceptionMessage('Only version 00 is supported, got ' . $invalidVersion);
             $context = TraceContext::extract($carrier, $map);
+
+            $this->assertSame(SpanContext::INVALID_TRACE, $context->getTraceId());
+            $this->assertSame(SpanContext::INVALID_SPAN, $context->getSpanId());
+            $this->assertSame(self::VERSION, ($context->isSampled() ? '01' : '00'));
+            $this->assertFalse($context->isRemote());
         }
     }
 
@@ -189,9 +218,12 @@ class TraceContextTest extends TestCase
             $carrier = [TraceContext::TRACEPARENT => $traceparentValue];
             $map = new PropagationMap();
 
-            $this->expectException(\InvalidArgumentException::class);
-            $this->expectExceptionMessage('TraceID must be exactly 16 bytes (32 chars) and at least one non-zero byte, got ' . $invalidTraceId);
             $context = TraceContext::extract($carrier, $map);
+
+            $this->assertSame(SpanContext::INVALID_TRACE, $context->getTraceId());
+            $this->assertSame(SpanContext::INVALID_SPAN, $context->getSpanId());
+            $this->assertSame(self::VERSION, ($context->isSampled() ? '01' : '00'));
+            $this->assertFalse($context->isRemote());
         }
     }
 
@@ -210,9 +242,12 @@ class TraceContextTest extends TestCase
             $carrier = [TraceContext::TRACEPARENT => $traceparentValue];
             $map = new PropagationMap();
 
-            $this->expectException(\InvalidArgumentException::class);
-            $this->expectExceptionMessage('SpanID must be exactly 8 bytes (16 chars) and at least one non-zero byte, got ' . $invalidSpanId);
             $context = TraceContext::extract($carrier, $map);
+
+            $this->assertSame(SpanContext::INVALID_TRACE, $context->getTraceId());
+            $this->assertSame(SpanContext::INVALID_SPAN, $context->getSpanId());
+            $this->assertSame(self::VERSION, ($context->isSampled() ? '01' : '00'));
+            $this->assertFalse($context->isRemote());
         }
     }
 
@@ -231,9 +266,12 @@ class TraceContextTest extends TestCase
             $carrier = [TraceContext::TRACEPARENT => $traceparentValue];
             $map = new PropagationMap();
 
-            $this->expectException(\InvalidArgumentException::class);
-            $this->expectExceptionMessage('TraceFlags must be exactly 1 bytes (1 char) representing a bit field, got ' . $invalidTraceFlag);
             $context = TraceContext::extract($carrier, $map);
+
+            $this->assertSame(SpanContext::INVALID_TRACE, $context->getTraceId());
+            $this->assertSame(SpanContext::INVALID_SPAN, $context->getSpanId());
+            $this->assertSame(self::VERSION, ($context->isSampled() ? '01' : '00'));
+            $this->assertFalse($context->isRemote());
         }
     }
 }

@@ -17,6 +17,7 @@ use OpenTelemetry\Sdk\Trace\SpanContext;
 use OpenTelemetry\Sdk\Trace\SpanStatus;
 use OpenTelemetry\Sdk\Trace\Tracer;
 use OpenTelemetry\Sdk\Trace\TracerProvider;
+use OpenTelemetry\Trace as API;
 use PHPUnit\Framework\TestCase;
 
 class TracingTest extends TestCase
@@ -143,6 +144,32 @@ class TracingTest extends TestCase
 
         // active span rolled back
         $this->assertSame($tracer->getActiveSpan(), $global);
+    }
+
+    public function testCreateSpanWithSpanKind()
+    {
+        $tracerProvider = new SDK\TracerProvider(null, new SDK\Sampler\AlwaysOnSampler());
+        $tracer = $tracerProvider->getTracer('OpenTelemetry.TracingTest');
+
+        $span = $tracer->startAndActivateSpan('someSpan');
+        $this->assertSame($span->getSpanKind(), API\SpanKind::KIND_INTERNAL);
+        $span->end();
+
+        $span = $tracer->startAndActivateSpan('someSpan', API\SpanKind::KIND_CLIENT);
+        $this->assertSame($span->getSpanKind(), API\SpanKind::KIND_CLIENT);
+        $span->end();
+
+        $span = $tracer->startAndActivateSpan('someSpan', API\SpanKind::KIND_SERVER);
+        $this->assertSame($span->getSpanKind(), API\SpanKind::KIND_SERVER);
+        $span->end();
+
+        $span = $tracer->startAndActivateSpan('someSpan', API\SpanKind::KIND_PRODUCER);
+        $this->assertSame($span->getSpanKind(), API\SpanKind::KIND_PRODUCER);
+        $span->end();
+
+        $span = $tracer->startAndActivateSpan('someSpan', API\SpanKind::KIND_CONSUMER);
+        $this->assertSame($span->getSpanKind(), API\SpanKind::KIND_CONSUMER);
+        $span->end();
     }
 
     public function testGetStatus()
@@ -385,6 +412,28 @@ class TracingTest extends TestCase
                     ->setAttribute('active_at', time());
 
         $this->assertCount(2, $span->getEvents());
+    }
+
+    public function testRecordExceptionEventAdditionalAttributes()
+    {
+        $tracerProvider = new SDK\TracerProvider();
+        $tracer = $tracerProvider->getTracer('OpenTelemetry.TracingTest');
+        $span = $tracer->startSpan('span');
+
+        $span->recordException(new Exception('exception'), new Attributes([
+            'exception.message' => 'message',
+            'exception.escaped' => true,
+        ]));
+
+        [$event] = iterator_to_array($span->getEvents());
+
+        $this->assertArrayHasKey('exception.type', iterator_to_array($event->getAttributes()));
+        $this->assertArrayHasKey('exception.message', iterator_to_array($event->getAttributes()));
+        $this->assertArrayHasKey('exception.stacktrace', iterator_to_array($event->getAttributes()));
+        $this->assertArrayHasKey('exception.escaped', iterator_to_array($event->getAttributes()));
+
+        $this->assertSame('message', iterator_to_array($event->getAttributes())['exception.message']->getValue());
+        $this->assertTrue(iterator_to_array($event->getAttributes())['exception.escaped']->getValue());
     }
 
     public function testAddEventWhenNotRecording()

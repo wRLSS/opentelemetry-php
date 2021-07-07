@@ -3,6 +3,9 @@
 declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\HttpFactory;
+use OpenTelemetry\Context\Context;
 use OpenTelemetry\Contrib\Zipkin\Exporter as ZipkinExporter;
 use OpenTelemetry\Sdk\Trace\Attributes;
 use OpenTelemetry\Sdk\Trace\Clock;
@@ -14,19 +17,21 @@ use OpenTelemetry\Trace as API;
 
 $sampler = new AlwaysOnSampler();
 $samplingResult = $sampler->shouldSample(
-    null,
+    Context::getCurrent(),
     md5((string) microtime(true)),
-    substr(md5((string) microtime(true)), 16),
     'io.opentelemetry.example',
     API\SpanKind::KIND_INTERNAL
 );
 
 $zipkinExporter = new ZipkinExporter(
     'alwaysOnZipkinExample',
-    'http://zipkin:9411/api/v2/spans'
+    'http://zipkin:9411/api/v2/spans',
+    new Client(),
+    new HttpFactory(),
+    new HttpFactory()
 );
 
-if (SamplingResult::RECORD_AND_SAMPLED === $samplingResult->getDecision()) {
+if (SamplingResult::RECORD_AND_SAMPLE === $samplingResult->getDecision()) {
     echo 'Starting AlwaysOnZipkinExample';
     $tracer = (new TracerProvider())
         ->addSpanProcessor(new SimpleSpanProcessor($zipkinExporter))
@@ -61,8 +66,8 @@ if (SamplingResult::RECORD_AND_SAMPLED === $samplingResult->getDecision()) {
         } catch (Exception $exception) {
             $span->recordException($exception);
         }
-        
-        $tracer->endActiveSpan();
+
+        $span->end();
     }
     echo PHP_EOL . 'AlwaysOnZipkinExample complete!  See the results at http://localhost:9411/';
 } else {
